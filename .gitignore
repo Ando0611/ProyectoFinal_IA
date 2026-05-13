@@ -8,6 +8,7 @@ data/celeba-hq/masks/*
 data/celeba-hq/attributes.txt
 !data/celeba-hq/images/.gitkeep
 !data/celeba-hq/masks/.gitkeep
+data/raw/
 models/
 logs/
 screenshots/

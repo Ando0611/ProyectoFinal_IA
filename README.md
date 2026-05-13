@@ -60,15 +60,27 @@ El notebook clona el repo, localiza el dataset, preprocesa, entrena y muestra ej
 
 Ver [`docs/DATASET.md`](docs/DATASET.md) para el flujo completo. Resumen:
 
-1. Descargar `CelebAMask-HQ.zip` desde el Google Drive oficial (gratis para uso académico).
-2. Descomprimir en un directorio temporal.
-3. Correr el preprocesador para combinar máscaras y dejar la estructura final:
+**1. Descargar con `kagglehub`** (sin login si ya tienes el token en `~/.kaggle/`):
+
+```bash
+pip install kagglehub
+python -c "import kagglehub; print(kagglehub.dataset_download('ipythonx/celebamaskhq'))"
+```
+
+Esto baja ~4.1 GB a `~/.cache/kagglehub/...`. Mueve la carpeta al proyecto para tenerlo todo junto:
+
+```bash
+mv ~/.cache/kagglehub/datasets/ipythonx/celebamaskhq/versions/1/CelebAMask-HQ \
+   data/raw/CelebAMask-HQ
+```
+
+**2. Preprocesar** (combina las 19 máscaras binarias por imagen en una sola y reescala):
 
 ```bash
 python -m data.preprocess_celebamaskhq \
-    --raw /ruta/a/CelebAMask-HQ \
+    --raw data/raw/CelebAMask-HQ \
     --out data/celeba-hq \
-    --limit 5000
+    --limit 10000
 ```
 
 Esto produce:
@@ -80,7 +92,7 @@ data/celeba-hq/
   attributes.txt
 ```
 
-> Para entrenar más rápido en el M4, empieza con `--limit 3000` o `5000`.
+> Empieza con `--limit 5000` (10–15 min preproceso, 30–60 min de entrenamiento en M4). Sube a `10000`+ para mejor mIoU.
 
 ## Entrenamiento
 
@@ -161,6 +173,29 @@ Cubren las shapes de la red, el cálculo de IoU y de accuracy/F1 por atributo.
 ## Nota técnica
 
 El backbone es un U-Net **entrenado desde cero** (He init, sin pesos pre-entrenados). Con `--limit 5000` y 15 épocas en M4 (MPS), se llega a un mIoU razonable en ~30–60 minutos. Para más calidad, sube a 10,000+ imágenes y 25+ épocas.
+
+## Quickstart en Mac (Apple Silicon)
+
+Desde la raíz del proyecto, con la venv activada:
+
+```bash
+export PYTORCH_ENABLE_MPS_FALLBACK=1   # opcional, para ops no soportados en MPS
+
+# Preprocesar (10–15 min con --limit 10000)
+python -m data.preprocess_celebamaskhq \
+    --raw data/raw/CelebAMask-HQ \
+    --out data/celeba-hq \
+    --limit 10000
+
+# Entrenar — config recomendada para M4 16 GB
+python -m src.train --epochs 30 --batch-size 8 --base-channels 32
+
+# Si te quedas sin memoria unificada, baja a:
+python -m src.train --epochs 30 --batch-size 4 --base-channels 16 --image-size 192
+
+# Demo en vivo con webcam (mesh sci-fi + segmentación)
+python -m src.realtime --style both
+```
 
 ## Cita del dataset
 

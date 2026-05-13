@@ -108,6 +108,25 @@ def describe_attributes(attr_probs, threshold=ATTR_THRESHOLD):
     return descripcion, detalle
 
 
+def mesh_overlay(pil_image, image_size, darken=0.55, with_seg_outline=None):
+    """Aplica el wireframe sci-fi (MediaPipe FaceMesh) sobre una imagen PIL.
+
+    Si `with_seg_outline` es una máscara uint8 [H,W], además dibuja los
+    bordes finos de las regiones segmentadas.
+    """
+    from src.visualize_mesh import draw_face_mesh, draw_seg_outline
+    import cv2
+
+    img_rgb = np.array(pil_image.convert("RGB").resize(
+        (image_size, image_size), Image.BILINEAR
+    ))
+    frame_bgr = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2BGR).copy()
+    draw_face_mesh(frame_bgr, static=True, darken=darken)
+    if with_seg_outline is not None:
+        draw_seg_outline(frame_bgr, with_seg_outline)
+    return Image.fromarray(cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB))
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Inferencia U-Net multi-tarea")
     parser.add_argument(
@@ -122,6 +141,15 @@ def parse_args():
     )
     parser.add_argument("--threshold", type=float, default=ATTR_THRESHOLD)
     parser.add_argument("--image-size", type=int, default=IMAGE_SIZE)
+    parser.add_argument(
+        "--style", type=str, default="seg",
+        choices=["seg", "mesh", "both"],
+        help="seg = máscara coloreada; mesh = wireframe sci-fi; both = ambos",
+    )
+    parser.add_argument(
+        "--darken", type=float, default=0.55,
+        help="Oscurece la imagen antes de pintar el mesh (solo mesh/both)",
+    )
     return parser.parse_args()
 
 
@@ -155,7 +183,18 @@ def main():
         print(f"\n{path.name}: {desc}")
         print(f"  {detalle}")
 
-        overlay_img = overlay(pil, mask, image_size=args.image_size)
+        if args.style == "seg":
+            overlay_img = overlay(pil, mask, image_size=args.image_size)
+        elif args.style == "mesh":
+            overlay_img = mesh_overlay(
+                pil, image_size=args.image_size, darken=args.darken,
+            )
+        else:  # both
+            overlay_img = mesh_overlay(
+                pil, image_size=args.image_size, darken=args.darken,
+                with_seg_outline=mask,
+            )
+
         original = pil.convert("RGB").resize(
             (args.image_size, args.image_size), Image.BILINEAR
         )
