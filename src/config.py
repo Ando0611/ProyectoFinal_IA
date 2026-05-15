@@ -8,12 +8,6 @@ Reconocimiento facial multi-tarea sobre CelebAMask-HQ:
 import os
 from pathlib import Path
 
-
-# Raíces
-#
-# Las rutas de datos/modelos/logs se pueden sobrescribir con variables
-# de entorno. Útil en Kaggle / Colab donde los datos viven en
-# /kaggle/input/... y las salidas deben ir a /kaggle/working/...
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = Path(os.environ.get("PROJECT_DATA_DIR", PROJECT_ROOT / "data" / "celeba-hq"))
 IMAGES_DIR = DATA_DIR / "images"
@@ -106,11 +100,47 @@ NUM_WORKERS = 0
 
 
 # Entrenamiento
-NUM_EPOCHS = 15
+NUM_EPOCHS = 30
 LR = 1e-3
 WEIGHT_DECAY = 1e-4
 LAMBDA_ATTR = 1.0         # peso de la pérdida de atributos vs segmentación
 
 
 # Inferencia
+# Threshold uniforme (fallback). Se usa solo si el usuario pasa
+# --threshold por CLI; si no, se usan los per-atributo de abajo.
 ATTR_THRESHOLD = 0.5
+
+# Con `apply_prior_correction` activada (default), las probabilidades
+# llegan ya "des-sesgadas" respecto al prior de entrenamiento, por lo
+# que un threshold uniforme 0.5 es la elección matemáticamente correcta.
+ATTR_THRESHOLDS = {
+    "Male":       0.50,
+    "Young":      0.50,
+    "Smiling":    0.50,
+    # Para atributos raros (prior chiquito), la corrección de prior
+    # amplifica señales débiles. Subimos el threshold para no clasificar
+    # como positivos por simples picos de ruido del modelo.
+    "Eyeglasses": 0.60,
+    "Mustache":   0.65,
+    "Beard":      0.60,
+}
+
+# Priors empíricos del split de entrenamiento de CelebA (P(atributo=1)).
+# Se usan para corregir el sesgo de clase: si el modelo aprendió que
+# "joven" es 78% del dataset, su sigmoid está desplazado hacia 1; le
+# restamos logit(prior) al logit para llevar la decisión a un prior
+# neutro de 0.5. Resultado: predicciones independientes de la distribución
+# del dataset.
+#
+# Valores reportados para CelebA (40-attr); si entrenas con un subset
+# o reglas distintas, pásalos vía --priors o regenera con
+# scripts/compute_priors.py.
+ATTR_PRIORS = {
+    "Male":       0.42,
+    "Young":      0.78,
+    "Smiling":    0.48,
+    "Eyeglasses": 0.065,
+    "Mustache":   0.042,
+    "Beard":      0.165,
+}
